@@ -28,7 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/heyalexej/QRImageRenamer/main/scrip
 If you want a specific version:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/heyalexej/QRImageRenamer/main/scripts/install.sh | sh -s -- --repo heyalexej/QRImageRenamer --version v0.1.1
+curl -fsSL https://raw.githubusercontent.com/heyalexej/QRImageRenamer/main/scripts/install.sh | sh -s -- --repo heyalexej/QRImageRenamer --version v0.1.2
 ```
 
 ## Quick Start

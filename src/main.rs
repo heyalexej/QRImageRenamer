@@ -86,7 +86,7 @@ impl Default for Config {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "qrir")]
+#[command(name = "qrir", version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Scan images for QR codes and rename/copy them using a MiniJinja template.")]
 struct Cli {
     #[arg(long)]
@@ -536,8 +536,12 @@ fn exif_dt_for_path(parser: &mut MediaParser, path: &Path) -> Option<NaiveDateTi
     let iter: ExifIter = parser.parse(ms).ok()?;
     let exif: Exif = iter.into();
     for tag in [ExifTag::DateTimeOriginal, ExifTag::CreateDate, ExifTag::ModifyDate] {
-        let v = exif.get(tag)?;
-        let (ndt, _offset) = v.as_time_components()?;
+        let Some(v) = exif.get(tag) else {
+            continue;
+        };
+        let Some((ndt, _offset)) = v.as_time_components() else {
+            continue;
+        };
         return Some(ndt);
     }
     None
@@ -762,8 +766,14 @@ fn main() -> Result<()> {
             let is_qr_frame = it.qr.is_some();
             if let Some(qr) = &it.qr {
                 total_qr_frames += 1;
+                // If the same QR appears in consecutive frames (e.g. multiple photos of the label),
+                // treat it as the same segment to avoid counter resets and destination collisions.
+                // A *different* QR starts a new segment and resets the counter.
+                let is_new_segment = current_qr.as_deref() != Some(qr.as_str());
                 current_qr = Some(qr.clone());
-                counter = 0;
+                if is_new_segment {
+                    counter = 0;
+                }
             }
 
             let dest_rel = if current_qr.is_none() {
