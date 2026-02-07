@@ -1,0 +1,44 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install build deps (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake g++
+
+      - name: Build
+        run: cargo build --release --bin qrir
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          tar -czf "dist/qrir-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz" -C target/release qrir
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tar.gz
+

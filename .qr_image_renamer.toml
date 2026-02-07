@@ -1,0 +1,9 @@
+template = "{{ qrcode_safe }}_1{{ n_pad }}.{{ ext_upper }}"
+padding = 2
+start_index = 1
+unmatched_dir = "unmatched"
+order = "auto"
+exif_format = "%Y-%m-%d_%H%M%S"
+use_exif_for_order_fallback = true
+ext_mode = "keep"
+

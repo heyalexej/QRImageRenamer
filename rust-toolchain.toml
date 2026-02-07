@@ -1,0 +1,4 @@
+[toolchain]
+# Use stable; this was verified as Rust 1.93.0 on 2026-02-07.
+channel = "stable"
+components = ["clippy", "rustfmt"]
