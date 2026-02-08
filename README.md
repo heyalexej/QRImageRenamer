@@ -28,7 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/heyalexej/QRImageRenamer/main/scrip
 If you want a specific version:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/heyalexej/QRImageRenamer/main/scripts/install.sh | sh -s -- --repo heyalexej/QRImageRenamer --version v0.1.2
+curl -fsSL https://raw.githubusercontent.com/heyalexej/QRImageRenamer/main/scripts/install.sh | sh -s -- --repo heyalexej/QRImageRenamer --version v0.1.3
 ```
 
 ## Quick Start
@@ -199,6 +199,30 @@ qrir --input ~/Pictures/img_today --output ~/Pictures/output --html-inspect
 ```
 
 Note: For the gallery to show images, do not use `--dry-run` (it needs the files in the output folder).
+
+SKU separator files (for easier visual scanning in Finder/Explorer and `ls`):
+```sh
+qrir --input ~/Pictures/img_today --output ~/Pictures/output --separator
+```
+
+What it does: for each detected SKU, `qrir` creates a small `.txt` file that sorts *before* that SKU's images.
+
+Example (`padding=2`, `start_index=1`):
+```text
+$ ls -1 ~/Pictures/output | head
+555555_00================.txt
+555555_101.JPG
+555555_102.JPG
+555555_103.JPG
+```
+
+If you use zero-indexing (`--start-index 0`), the separator becomes negative so it still sorts first:
+```text
+$ ls -1 ~/Pictures/output | head
+555555_-01================.txt
+555555_100.JPG
+555555_101.JPG
+```
 
 ## Build (Bottom Section)
 

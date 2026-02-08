@@ -143,6 +143,12 @@ struct Cli {
     #[arg(long)]
     html_inspect: bool,
 
+    /// Create a per-SKU separator file (e.g. `5023_00================.txt`) in each output directory.
+    ///
+    /// This is meant to improve visual scanning in file explorers and `ls` output.
+    #[arg(long)]
+    separator: bool,
+
     /// Print planned actions, do not write files.
     #[arg(long)]
     dry_run: bool,
@@ -409,6 +415,16 @@ fn ext_vars(ext_raw: &str, mode: ExtMode, fixed: Option<&str>) -> (String, Strin
     (ext, ext_lower, ext_upper)
 }
 
+fn separator_key(padding: usize, start_index: u8) -> String {
+    let width = padding.max(1);
+    if start_index == 0 {
+        // Ensure separator sorts before `..._00...` in lexicographic and most natural sorts.
+        format!("-{}", format!("{:0width$}", 1, width = width))
+    } else {
+        format!("{:0width$}", 0, width = width)
+    }
+}
+
 fn parse_trailing_digits(stem: &str) -> Option<(&str, &str)> {
     let bytes = stem.as_bytes();
     let mut i = bytes.len();
@@ -648,6 +664,7 @@ fn main() -> Result<()> {
 
     let mut all_actions: Vec<Action> = Vec::new();
     let mut inspect_images: Vec<HtmlInspectImage> = Vec::new();
+    let mut separator_files: HashMap<PathBuf, String> = HashMap::new(); // abs_path -> file contents
     let mut total_images = 0usize;
     let mut total_qr_frames = 0usize;
     let mut total_unmatched = 0usize;
@@ -846,6 +863,23 @@ fn main() -> Result<()> {
                 is_move: cli.r#move,
             });
 
+            if cli.separator {
+                if let Some(raw) = &current_qr {
+                    let sku_raw = raw.clone();
+                    let sku = sanitize_filename_segment(&sku_raw);
+
+                    let sep_key = separator_key(cfg.padding, cfg.start_index);
+                    let sep_name = format!("{sku}_{sep_key}================.txt");
+                    let dest_dir_rel = dest_rel.parent().unwrap_or(Path::new("")).to_path_buf();
+                    let sep_rel = dest_dir_rel.join(sep_name);
+                    let sep_abs = output_root.join(sep_rel);
+
+                    separator_files
+                        .entry(sep_abs)
+                        .or_insert_with(|| format!("SKU: {sku}\nSKU_RAW: {sku_raw}\n"));
+                }
+            }
+
             if cli.html_inspect {
                 if let Some(raw) = &current_qr {
                     let sku_raw = raw.clone();
@@ -870,6 +904,9 @@ fn main() -> Result<()> {
         }
     }
 
+    // Stop progress printing before we start emitting summary lines to stdout.
+    drop(progress);
+
     // Duplicate destination detection within this run (always an error).
     let mut seen: HashMap<PathBuf, PathBuf> = HashMap::new();
     for a in &all_actions {
@@ -883,9 +920,42 @@ fn main() -> Result<()> {
         }
     }
 
+    // Ensure separator files don't collide with planned destinations.
+    for (sep, _contents) in &separator_files {
+        if let Some(src) = seen.get(sep) {
+            anyhow::bail!(
+                "Separator file path collides with a destination:\n  {}\n-> {}",
+                src.display(),
+                sep.display()
+            );
+        }
+    }
+
     // Execute.
     let mut wrote = 0usize;
     let mut skipped_existing = 0usize;
+
+    // Write separator files first (so they are visible even if the run is interrupted).
+    let mut wrote_separators = 0usize;
+    let mut skipped_separators = 0usize;
+    if cli.separator {
+        for (sep, contents) in &separator_files {
+            if sep.exists() && !cli.overwrite {
+                skipped_separators += 1;
+                continue;
+            }
+            if cli.dry_run {
+                println!("DRY: SEPARATOR -> {}", sep.display());
+                continue;
+            }
+            if let Some(parent) = sep.parent() {
+                std::fs::create_dir_all(parent).with_context(|| format!("create dir {}", parent.display()))?;
+            }
+            std::fs::write(sep, contents).with_context(|| format!("write separator {}", sep.display()))?;
+            wrote_separators += 1;
+        }
+    }
+
     for a in &all_actions {
         if a.dest.exists() {
             if cli.overwrite {
@@ -925,6 +995,13 @@ fn main() -> Result<()> {
     if cli.dry_run {
         println!("dry_run: true");
     } else {
+        if cli.separator {
+            println!("separator_files: {}", separator_files.len());
+            println!("separators_wrote: {wrote_separators}");
+            if skipped_separators > 0 {
+                println!("separators_skipped_existing: {skipped_separators} (use --overwrite to replace)");
+            }
+        }
         println!("wrote: {wrote}");
         if skipped_existing > 0 {
             println!("skipped_existing: {skipped_existing} (use --overwrite to replace)");
